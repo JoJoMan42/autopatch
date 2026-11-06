@@ -11,6 +11,8 @@ ENV/
 
 # Testing & Coverage
 .pytest_cache/
+.mypy_cache/
+.ruff_cache/
 .coverage
 htmlcov/
 
@@ -21,11 +23,10 @@ secrets/
 *.pem
 *.key
 
-# Artifacts & Workspaces
-data/artifacts/*
-!data/artifacts/.gitkeep
-workspaces/*
-!workspaces/.gitkeep
+# Artifacts, workspaces, and packaging
+data/
+workspaces/
+*.egg-info/
 
 # IDE & OS
 .vscode/

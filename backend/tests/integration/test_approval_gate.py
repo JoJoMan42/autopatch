@@ -2,6 +2,7 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
 
 from patchpilot.constants import PatchState
 from patchpilot.db.base import Base
@@ -12,7 +13,11 @@ from patchpilot.main import app
 
 @pytest.fixture
 def client_and_session():
-    engine = create_engine("sqlite:///:memory:")
+    engine = create_engine(
+        "sqlite:///:memory:",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
     Base.metadata.create_all(engine)
     TestingSessionLocal = sessionmaker(bind=engine)
 
@@ -64,4 +69,3 @@ def test_server_enforces_approval_gate_before_branch(client_and_session):
     assert branch_res.status_code == 200
     assert branch_res.json()["patch_id"] == patch.id
     assert "patchpilot/fix-" in branch_res.json()["branch_name"]
-

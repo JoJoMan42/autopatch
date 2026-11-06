@@ -69,3 +69,30 @@ class ConfigError(DomainError):
     http_status = 500
     problem_type = "configuration-error"
 
+
+class OutputParseError(DomainError):
+    """Model output could not be parsed. Internal; not mapped to HTTP."""
+
+    http_status = 500
+    status_code = 500
+    problem_type = "internal-error"
+    slug = "internal-error"
+
+
+class DiffParseError(DomainError):
+    """A unified diff could not be parsed. Internal; not mapped to HTTP."""
+
+    http_status = 500
+    status_code = 500
+    problem_type = "internal-error"
+    slug = "internal-error"
+
+
+class GuardRejectedError(DomainError):
+    """The patch guard rejected a candidate. Internal; not mapped to HTTP."""
+
+    http_status = 500
+    status_code = 500
+    problem_type = "internal-error"
+    slug = "internal-error"
+
