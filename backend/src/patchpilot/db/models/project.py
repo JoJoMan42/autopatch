@@ -1,33 +1,36 @@
 from __future__ import annotations
 
-import uuid
-from datetime import datetime, timezone
-from sqlalchemy import DateTime, String, Text
+from sqlalchemy import CheckConstraint, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from patchpilot.db.base import Base
+from patchpilot.db.base import Base, TimestampMixin, uuid_fk, uuid_pk
 
 
-class ProjectModel(Base):
+class ProjectModel(Base, TimestampMixin):
+    """Registered repository. Exactly one of repo_url or local_path is set."""
+
     __tablename__ = "projects"
-
-    id: Mapped[str] = mapped_column(
-        String(36), primary_key=True, default=lambda: str(uuid.uuid4())
-    )
-    name: Mapped[str] = mapped_column(String(100), nullable=False)
-    repo_url: Mapped[str] = mapped_column(Text, nullable=False)
-    default_branch: Mapped[str] = mapped_column(String(50), default="main", nullable=False)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    __table_args__ = (
+        CheckConstraint(
+            "(repo_url IS NOT NULL AND local_path IS NULL) "
+            "OR (repo_url IS NULL AND local_path IS NOT NULL)",
+            name="source_xor",
+        ),
     )
 
-    scans: Mapped[list[ScanModel]] = relationship("ScanModel", back_populates="project")
-    code_chunks: Mapped[list[CodeChunkModel]] = relationship(
-        "CodeChunkModel", back_populates="project"
+    id: Mapped[str] = uuid_pk()
+    name: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
+    repo_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    local_path: Mapped[str | None] = mapped_column(Text, nullable=True)
+    default_branch: Mapped[str] = mapped_column(
+        String(255), nullable=False, default="main", server_default="main"
+    )
+    created_by: Mapped[str] = uuid_fk("users.id")
+
+    scans: Mapped[list[ScanModel]] = relationship(
+        back_populates="project",
+        lazy="raise",
     )
 
 
-# Late imports for type annotations if needed
-from patchpilot.db.models.scan import ScanModel  # noqa: E402
-from patchpilot.db.models.code_chunk import CodeChunkModel  # noqa: E402
-
+from patchpilot.db.models.scan import ScanModel

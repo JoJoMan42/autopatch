@@ -1,41 +1,59 @@
 from __future__ import annotations
 
-import uuid
-from datetime import datetime, timezone
+from decimal import Decimal
 from typing import Any
+
 from sqlalchemy import (
-    DateTime,
-    Float,
+    CHAR,
+    CheckConstraint,
     Integer,
-    JSON,
     Numeric,
     String,
     Text,
+    UniqueConstraint,
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
-from patchpilot.db.base import Base
+from patchpilot.db.base import Base, TimestampMixin, jsonb_type, uuid_fk, uuid_pk
 
 
-class LLMCallModel(Base):
+class LLMCallModel(Base, TimestampMixin):
+    """One model invocation: tokens, latency, and artifact URIs."""
+
     __tablename__ = "llm_calls"
-
-    id: Mapped[str] = mapped_column(
-        String(36), primary_key=True, default=lambda: str(uuid.uuid4())
+    __table_args__ = (
+        CheckConstraint("status IN ('ok', 'error')", name="status_values"),
     )
-    job_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
-    patch_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
-    provider: Mapped[str] = mapped_column(String(50), nullable=False)
-    model: Mapped[str] = mapped_column(String(100), nullable=False)
-    prompt_version: Mapped[str] = mapped_column(String(50), nullable=False)
-    params: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
-    prompt_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+
+    id: Mapped[str] = uuid_pk()
+    job_id: Mapped[str | None] = uuid_fk("jobs.id", nullable=True)
+    patch_id: Mapped[str | None] = uuid_fk("patch_candidates.id", nullable=True)
+    purpose: Mapped[str] = mapped_column(Text, nullable=False)
+    provider: Mapped[str] = mapped_column(Text, nullable=False)
+    model: Mapped[str] = mapped_column(Text, nullable=False)
+    prompt_version: Mapped[str] = mapped_column(Text, nullable=False)
+    params: Mapped[dict[str, Any]] = mapped_column(jsonb_type(), nullable=False, default=dict)
+    prompt_hash: Mapped[str] = mapped_column(CHAR(64), nullable=False)
+    prompt_uri: Mapped[str | None] = mapped_column(Text, nullable=True)
     response_uri: Mapped[str | None] = mapped_column(Text, nullable=True)
-    tokens_in: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    tokens_out: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    latency_ms: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    cost: Mapped[float] = mapped_column(Numeric(10, 6), default=0.0, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    tokens_in: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    tokens_out: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    latency_ms: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    cost_usd: Mapped[Decimal] = mapped_column(
+        Numeric(10, 6), nullable=False, default=Decimal(0), server_default="0"
     )
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="ok", server_default="ok")
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
 
+
+class PromptTemplate(Base, TimestampMixin):
+    """Versioned prompt template stored in the prompts table."""
+
+    __tablename__ = "prompts"
+    __table_args__ = (UniqueConstraint("name", "version", name="uq_prompts_name_version"),)
+
+    id: Mapped[str] = uuid_pk()
+    name: Mapped[str] = mapped_column(Text, nullable=False)
+    version: Mapped[str] = mapped_column(Text, nullable=False)
+    sha256: Mapped[str] = mapped_column(CHAR(64), nullable=False)
+    template: Mapped[str] = mapped_column(Text, nullable=False)
