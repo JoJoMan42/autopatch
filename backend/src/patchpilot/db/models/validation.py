@@ -1,35 +1,45 @@
 from __future__ import annotations
 
-import uuid
-from datetime import datetime, timezone
-from sqlalchemy import DateTime, Enum, ForeignKey, Integer, String, Text
+from typing import Any
+
+from sqlalchemy import Index, Integer, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from patchpilot.constants import StageName, StageOutcome
-from patchpilot.db.base import Base
+from patchpilot.db.base import (
+    Base,
+    EnumText,
+    TimestampMixin,
+    enum_check,
+    jsonb_type,
+    uuid_fk,
+    uuid_pk,
+)
 
 
-class ValidationRunModel(Base):
+class ValidationRunModel(Base, TimestampMixin):
+    """One validation stage result. The table is append-only in PostgreSQL."""
+
     __tablename__ = "validation_runs"
+    __table_args__ = (
+        enum_check("stage", StageName),
+        enum_check("outcome", StageOutcome),
+        Index("ix_validation_runs_patch_id_stage", "patch_id", "stage"),
+    )
 
-    id: Mapped[str] = mapped_column(
-        String(36), primary_key=True, default=lambda: str(uuid.uuid4())
-    )
-    patch_id: Mapped[str] = mapped_column(
-        String(36), ForeignKey("patch_candidates.id", ondelete="CASCADE"), nullable=False, index=True
-    )
-    stage: Mapped[StageName] = mapped_column(Enum(StageName), nullable=False)
-    outcome: Mapped[StageOutcome] = mapped_column(Enum(StageOutcome), nullable=False)
-    duration_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    log_uri: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
-    )
+    id: Mapped[str] = uuid_pk()
+    patch_id: Mapped[str] = uuid_fk("patch_candidates.id")
+    stage: Mapped[StageName] = mapped_column(EnumText(StageName), nullable=False)
+    outcome: Mapped[StageOutcome] = mapped_column(EnumText(StageOutcome), nullable=False)
+    duration_ms: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    summary: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    log_uri: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    details: Mapped[dict[str, Any]] = mapped_column(jsonb_type(), nullable=False, default=dict)
 
     patch: Mapped[PatchCandidateModel] = relationship(
-        "PatchCandidateModel", back_populates="validation_runs"
+        back_populates="validation_runs",
+        lazy="raise",
     )
 
 
-from patchpilot.db.models.patch import PatchCandidateModel  # noqa: E402
-
+from patchpilot.db.models.patch import PatchCandidateModel

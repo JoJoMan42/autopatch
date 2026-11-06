@@ -83,3 +83,33 @@ class ReviewDecision(str, Enum):
     REJECTED = "rejected"
     REGENERATE = "regenerate"
 
+
+
+# ---------------------------------------------------------------------------
+# Small shared constants (no logic; no package imports)
+# ---------------------------------------------------------------------------
+
+ROLE_RANK: dict[Role, int] = {
+    Role.VIEWER: 0,
+    Role.DEVELOPER: 1,
+    Role.REVIEWER: 2,
+    Role.ADMIN: 3,
+}
+
+TERMINAL_JOB_STATUSES: frozenset[JobStatus] = frozenset(
+    {JobStatus.SUCCEEDED, JobStatus.FAILED, JobStatus.CANCELLED}
+)
+
+TERMINAL_PATCH_STATES: frozenset[PatchState] = frozenset(
+    {
+        PatchState.BRANCH_CREATED,
+        PatchState.REJECTED,
+        PatchState.FAILED,
+        PatchState.ABSTAINED,
+        PatchState.SUPERSEDED,
+    }
+)
+
+PAGE_SIZE_DEFAULT: int = 50
+PAGE_SIZE_MAX: int = 200
+SUPPORTED_LANGUAGES: tuple[str, ...] = ('python',)

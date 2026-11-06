@@ -51,13 +51,23 @@ class Settings(BaseSettings):
     # Logging
     log_level: str = "INFO"
 
+    # Contract additions (spec section 2.0)
+    job_token_budget: int = 200000
+    push_enabled: bool = False
+    log_llm_payloads: bool = True
+    fake_llm_fixtures_dir: str = ""
+    session_cookie_name: str = "pp_session"
+    cookie_secure: bool = True
+
     @property
     def cors_origin_list(self) -> list[str]:
+        """Browser origins allowed by CORS."""
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
 
     @property
-    def git_local_roots_list(self) -> list[str]:
-        return [r.strip() for r in self.git_local_roots.split(",") if r.strip()]
+    def git_local_root_list(self) -> list[Path]:
+        """Absolute local repository roots from the comma-separated allowlist."""
+        return [Path(r.strip()) for r in self.git_local_roots.split(",") if r.strip()]
 
 
 @lru_cache

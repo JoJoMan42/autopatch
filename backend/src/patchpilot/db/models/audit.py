@@ -1,28 +1,30 @@
 from __future__ import annotations
 
-import uuid
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Any
-from sqlalchemy import DateTime, JSON, String, Text
+
+from sqlalchemy import CHAR, DateTime, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
-from patchpilot.db.base import Base
+from patchpilot.db.base import Base, bigserial_pk, jsonb_type, utcnow
 
 
 class AuditEventModel(Base):
+    """Hash-chained audit row. The table is append-only in PostgreSQL."""
+
     __tablename__ = "audit_events"
 
-    id: Mapped[str] = mapped_column(
-        String(36), primary_key=True, default=lambda: str(uuid.uuid4())
-    )
+    id: Mapped[int] = bigserial_pk()
     ts: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), index=True
+        DateTime(timezone=True),
+        nullable=False,
+        default=utcnow,
+        server_default="now()",
     )
-    actor: Mapped[str] = mapped_column(String(100), nullable=False)
-    action: Mapped[str] = mapped_column(String(100), nullable=False)
-    entity_type: Mapped[str] = mapped_column(String(50), nullable=False)
-    entity_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
-    payload: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
-    prev_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    hash: Mapped[str] = mapped_column(String(64), nullable=False)
-
+    actor: Mapped[str] = mapped_column(Text, nullable=False)
+    action: Mapped[str] = mapped_column(Text, nullable=False)
+    entity_type: Mapped[str] = mapped_column(Text, nullable=False)
+    entity_id: Mapped[str] = mapped_column(Text, nullable=False)
+    payload: Mapped[dict[str, Any]] = mapped_column(jsonb_type(), nullable=False, default=dict)
+    prev_hash: Mapped[str] = mapped_column(CHAR(64), nullable=False)
+    hash: Mapped[str] = mapped_column(CHAR(64), unique=True, nullable=False)

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from patchpilot.db.models.audit import AuditEventModel
 from patchpilot.db.models.code_chunk import CodeChunkModel
 from patchpilot.db.models.experiment import (
@@ -7,7 +9,7 @@ from patchpilot.db.models.experiment import (
 )
 from patchpilot.db.models.finding import FindingModel
 from patchpilot.db.models.job import JobEventModel, JobModel
-from patchpilot.db.models.llm import LLMCallModel
+from patchpilot.db.models.llm import LLMCallModel, PromptTemplate
 from patchpilot.db.models.patch import PatchCandidateModel
 from patchpilot.db.models.project import ProjectModel
 from patchpilot.db.models.review import ReviewModel
@@ -27,9 +29,9 @@ __all__ = [
     "LLMCallModel",
     "PatchCandidateModel",
     "ProjectModel",
+    "PromptTemplate",
     "ReviewModel",
     "ScanModel",
     "UserModel",
     "ValidationRunModel",
 ]
-

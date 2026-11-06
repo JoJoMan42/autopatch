@@ -1,72 +1,91 @@
 from __future__ import annotations
 
-import uuid
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Any
-from sqlalchemy import DateTime, ForeignKey, JSON, String, Text
+
+from sqlalchemy import (
+    CHAR,
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from patchpilot.db.base import Base
+from patchpilot.db.base import Base, TimestampMixin, jsonb_type, uuid_fk, uuid_pk
 
 
-class BenchmarkCaseModel(Base):
+class BenchmarkCaseModel(Base, TimestampMixin):
+    """Ground-truth evaluation case. id is the case identifier, not a UUID."""
+
     __tablename__ = "benchmark_cases"
-
-    id: Mapped[str] = mapped_column(
-        String(36), primary_key=True, default=lambda: str(uuid.uuid4())
-    )
-    source: Mapped[str] = mapped_column(String(50), nullable=False)
-    language: Mapped[str] = mapped_column(String(30), default="python", nullable=False)
-    cwe: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
-    repo_ref: Mapped[str] = mapped_column(Text, nullable=False)
-    ground_truth: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    __table_args__ = (
+        CheckConstraint("source IN ('injected', 'curated')", name="source_values"),
+        CheckConstraint("split IN ('dev', 'test')", name="split_values"),
     )
 
-    runs: Mapped[list[ExperimentRunModel]] = relationship(
-        "ExperimentRunModel", back_populates="case"
-    )
+    id: Mapped[str] = mapped_column(Text, primary_key=True)
+    source: Mapped[str] = mapped_column(Text, nullable=False)
+    cwe: Mapped[str] = mapped_column(Text, nullable=False)
+    language: Mapped[str] = mapped_column(String(32), nullable=False)
+    project_ref: Mapped[str] = mapped_column(Text, nullable=False)
+    file_path: Mapped[str] = mapped_column(Text, nullable=False)
+    line: Mapped[int] = mapped_column(Integer, nullable=False)
+    split: Mapped[str] = mapped_column(Text, nullable=False)
+    ground_truth: Mapped[dict[str, Any]] = mapped_column(jsonb_type(), nullable=False)
+
+    runs: Mapped[list[ExperimentRunModel]] = relationship(back_populates="case", lazy="raise")
 
 
-class ExperimentModel(Base):
+class ExperimentModel(Base, TimestampMixin):
+    """One benchmark experiment configuration."""
+
     __tablename__ = "experiments"
 
-    id: Mapped[str] = mapped_column(
-        String(36), primary_key=True, default=lambda: str(uuid.uuid4())
-    )
-    config: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
-    git_sha: Mapped[str] = mapped_column(String(40), nullable=False)
-    status: Mapped[str] = mapped_column(String(20), default="running", nullable=False)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
-    )
+    id: Mapped[str] = uuid_pk()
+    name: Mapped[str] = mapped_column(Text, nullable=False)
+    config: Mapped[dict[str, Any]] = mapped_column(jsonb_type(), nullable=False)
+    git_sha: Mapped[str] = mapped_column(CHAR(40), nullable=False)
+    status: Mapped[str] = mapped_column(Text, nullable=False)
+    job_id: Mapped[str | None] = uuid_fk("jobs.id", nullable=True)
+    created_by: Mapped[str] = uuid_fk("users.id")
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     runs: Mapped[list[ExperimentRunModel]] = relationship(
-        "ExperimentRunModel", back_populates="experiment"
+        back_populates="experiment",
+        lazy="raise",
     )
 
 
-class ExperimentRunModel(Base):
+class ExperimentRunModel(Base, TimestampMixin):
+    """One sample of one case under one experiment variant."""
+
     __tablename__ = "experiment_runs"
+    __table_args__ = (
+        UniqueConstraint(
+            "experiment_id",
+            "case_id",
+            "variant",
+            "sample_idx",
+            name="uq_experiment_runs_case_variant_sample",
+        ),
+    )
 
-    id: Mapped[str] = mapped_column(
-        String(36), primary_key=True, default=lambda: str(uuid.uuid4())
-    )
-    experiment_id: Mapped[str] = mapped_column(
-        String(36), ForeignKey("experiments.id", ondelete="CASCADE"), nullable=False, index=True
-    )
+    id: Mapped[str] = uuid_pk()
+    experiment_id: Mapped[str] = uuid_fk("experiments.id")
     case_id: Mapped[str] = mapped_column(
-        String(36), ForeignKey("benchmark_cases.id", ondelete="CASCADE"), nullable=False, index=True
+        Text,
+        ForeignKey("benchmark_cases.id", ondelete="RESTRICT"),
+        nullable=False,
     )
-    patch_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
-    variant: Mapped[str] = mapped_column(String(20), nullable=False)
-    outcome: Mapped[str] = mapped_column(String(30), nullable=False)
-    metrics: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
-    )
+    variant: Mapped[str] = mapped_column(Text, nullable=False)
+    sample_idx: Mapped[int] = mapped_column(Integer, nullable=False)
+    patch_id: Mapped[str | None] = uuid_fk("patch_candidates.id", nullable=True)
+    finding_id: Mapped[str | None] = uuid_fk("findings.id", nullable=True)
+    outcome: Mapped[dict[str, Any]] = mapped_column(jsonb_type(), nullable=False)
 
-    experiment: Mapped[ExperimentModel] = relationship("ExperimentModel", back_populates="runs")
-    case: Mapped[BenchmarkCaseModel] = relationship("BenchmarkCaseModel", back_populates="runs")
-
+    experiment: Mapped[ExperimentModel] = relationship(back_populates="runs", lazy="raise")
+    case: Mapped[BenchmarkCaseModel] = relationship(back_populates="runs", lazy="raise")
