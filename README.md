@@ -77,3 +77,4 @@ patchpilot scan benchmarks/seed_projects/clean_shop
 # Run interactive walkthrough for teachers / viva
 patchpilot demo --cwe CWE-89
 ```
+
